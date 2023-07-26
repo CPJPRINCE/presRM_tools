@@ -1,9 +1,8 @@
 from pyPreservica import *
-import secret
+from .. import secret
 import pandas as pd
 from datetime import datetime
 from dateutil.relativedelta import relativedelta
-import sys
 
 print(pyPreservica.__version__)
 

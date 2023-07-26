@@ -1,6 +1,6 @@
 import pandas as pd
 from pyPreservica import *
-import secret
+from .. import secret
 from datetime import datetime 
 from openpyxl import load_workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo

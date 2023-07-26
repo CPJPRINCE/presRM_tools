@@ -1,6 +1,6 @@
 import pandas as pd
 from pyPreservica import *
-import secret
+from .. import secret
 import datetime
 from lxml import etree
 
