@@ -1,10 +1,10 @@
 import pandas as pd
 from pyPreservica import *
-from .. import secret
-import datetime
+import secret
+from datetime import datetime
 from lxml import etree
 
-startTime = datetime.datetime.now()
+startTime = datetime.now()
 print("Start Time: " + str(startTime))
 
 entity = EntityAPI(username=secret.username,password=secret.password, \
@@ -23,15 +23,15 @@ def date_formatting(vardate):
     if not vardate or vardate == "False" or vardate == "?" or vardate == "NaN" or vardate == "nan" or vardate == "NaT" or vardate == "": vardate = ""
     else:
         try:
-            vardate = datetime.datetime.strptime(vardate,"%Y-%m-%d %H:%M:%S")
+            vardate = datetime.strptime(vardate,"%Y-%m-%d %H:%M:%S")
             vardate = vardate.strftime("%Y-%m-%dT%H:%M:%S.000Z")
         except Exception: 
             try: 
-                vardate = datetime.datetime.strptime(vardate,"%Y-%m-%dT%H:%M:%S")
+                vardate = datetime.strptime(vardate,"%Y-%m-%dT%H:%M:%S")
                 vardate = vardate.strftime("%Y-%m-%dT%H:%M:%S.000Z")
             except Exception:
                 try: 
-                    vardate = datetime.datetime.strptime(vardate,"%d-%m-%Y")
+                    vardate = datetime.strptime(vardate,"%d-%m-%Y")
                     vardate = vardate.strftime("%Y-%m-%dT%H:%M:%S.000Z")
                 except Exception:
                     vardate = ""
@@ -60,7 +60,7 @@ def retention_assignment(RETENTION_LIST):
             print(e)
 
 if __name__ == '__main__':
-    uknl = "UK"
+    uknl = "NL"
     
     if uknl == "UK":
         nl_flag = False
@@ -71,26 +71,26 @@ if __name__ == '__main__':
     if nl_flag:  rootname = "Records Management NL"
     else: rootname = "Records Management UK" # Can be overriden with sub-childs for testing...
 
-    xlpath = rf"C:\Users\Chris.Prince\Unilever\UARM Teamsite - Records Management\Project Snakeboot\XLoutput\CS10Export_{uknl}_Final.xlsx"
+    xlpath = rf"C:\Users\Chris.Prince\Unilever\UARM Teamsite - Records Management\Project Snakeboot\XLoutput\CS10Export_{uknl}_RM Import.xlsx"
 
     #Lists for Error Checking and for Retention Setting.
     RETENT_ERRORLIST = []
     RETENTION_LIST = []
-    #Root Preservica Level, where database will sit. Hard coded, doesn't need to vary - only update on final upload
-    PRES_ROOT_FOLDER = "bf614a5d-10db-4ff8-addb-2c913b3149eb"
-    #PRES_ROOT_FOLDER = "d3d9314b-e1ae-4209-a180-89c07e454456"
+    # where database will sit. Hard coded, doesn't need to vary - only update on final upload
+    #PRES_ROOT_FOLDER = "bf614a5d-10db-4ff8-addb-2c913b3149eb" #UK
+    PRES_ROOT_FOLDER = "5f76e749-ddf3-4d3d-a31c-bd07864e9dc2" #NL
 
     #Data Frame Loading. Sheets needs to be changed on changing from UK to NL. Normally takes ~2 minutes to read UK.
     
-    df = pd.read_excel(xlpath,'DATA')
-    print(f'Read DataFrame, ran for: {datetime.datetime.now() - startTime}')
+    df = pd.read_excel(xlpath,'DATA',dtype={'id': str,'parentid': str})
+    print(f'Read DataFrame, ran for: {datetime.now() - startTime}')
     asslist = []
-    filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,'rm.legacyid':"*","xip.document_type": "IO"}
+    filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,'xip.reference':"",'rm.legacyid':"*","xip.document_type": "IO"}
     content.search_callback(content.ReportProgressCallBack())
     retentionlist = list(content.search_index_filter_list(query="%",filter_values=filters))
     print(f"Hits: {len(retentionlist)}")
     for hit in retentionlist:
-        pres_ref = hit['xip.reference']
+        pres_ref = hit.get('xip.reference')
         idx = df.index[df['id'] == int(hit['rm.legacyid'])].tolist()
         row = df.loc[idx[0]]
         pres_retention = row['classificationpreservica']
@@ -100,13 +100,13 @@ if __name__ == '__main__':
             retentdict = {"Preservica Reference": pres_ref,"Preservica Retention": pres_retention}
             retention_assignment([retentdict])
             RETENTION_LIST.append(asslist)
-    print(f"Complete! Ran for: {datetime.datetime.now() - startTime}")
+    print(f"Complete! Ran for: {datetime.now() - startTime}")
 
     #Lookups the Top-Most Level, to start the Top-Down Loop. - this needs to be set to Records Management UK or Records Management NL.
     #Can also be set to Sub Levels for testing uploads (Rather than changing Tabs.)...
     
     #Retention List Export to Excel w/timestamp.
     df = pd.DataFrame(RETENTION_LIST)
-    df.to_excel(f'RETENTION_LIST_{datetime.datetime.now().strftime("%d-%m-%Y")}.xlsx')
+    df.to_excel(f'RETENTION_LIST_{datetime.now().strftime("%d-%m-%Y")}.xlsx')
     dferr = pd.DataFrame(RETENT_ERRORLIST)
-    dferr.to_excel(f'RETENT_ERROR_LIST_{datetime.datetime.now().strftime("%d-%m-%Y")}.xlsx')
+    dferr.to_excel(f'RETENT_ERROR_LIST_{datetime.now().strftime("%d-%m-%Y")}.xlsx')
