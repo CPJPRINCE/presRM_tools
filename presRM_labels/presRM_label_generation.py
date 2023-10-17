@@ -1,4 +1,3 @@
-#!"C:\Python311\python.exe"
 from reportlab.pdfgen.canvas import Canvas
 from reportlab.lib.units import inch
 from reportlab.platypus import Paragraph,KeepInFrame, Frame
@@ -14,11 +13,10 @@ import shlex
 from PyPDF2 import PdfWriter
 
 x = input('Please enter your Box Reference(s) or the location of CSV/XLSX file: ')
-list("")
 if x: sys.argv.extend(shlex.split(x))
 y = input('If there are any additional options, you want to add please add them here, otherwise click enter\n \
         Options include: [--box-only, --files-only, --combine, --output "path\\to\\output"] :')
-if y: sys.argv.extend(y.split(" "))
+if y: sys.argv.extend(shlex.split(y))
 u = input('Please enter your Preservica Username (if you are using a secret file, click enter): ')
 p = getpass('Please enter your Preservica Password (if you are using a secret file, click enter): ')
 
@@ -39,7 +37,6 @@ if y:
         if "box-only" in yy: args.box_only = True
         if "files-only" in yy: args.files_only = True
         if "output" in yy: args.output = yy
-
 if u: args.username = u
 if p: args.password = p
 
@@ -164,7 +161,7 @@ if __name__ == "__main__":
             else:
                 fname = boxref.replace('/','-') + "_Box Label.pdf"
                 fpath = os.path.join(label.output,fname)
-                box_label_generation(boxref,dept=boxdept,location=boxlocation,weight=boxweight,barcode=presref)
+                box_label_generation(boxref,dept=boxdept,location=boxlocation,weight=boxweight,barcode=None)
                 if args.combine: box_combine_list.append(fpath)
             if label.box_only:
                 print('Box only selected, skipping File Creation')
@@ -181,7 +178,7 @@ if __name__ == "__main__":
                     presref = e.reference
                     itemref = e.title
                     itemdesc = e.description
-                    file_label_generation(c,itemref,desc=itemdesc,dept=boxdept,location=boxlocation,barcode=presref)
+                    file_label_generation(c,itemref,desc=itemdesc,dept=boxdept,location=boxlocation,barcode=None)
                 c.save()
                 if args.combine: file_combine_list.append(fpath)
                 print(f'File Label Generated to: {fpath}')
