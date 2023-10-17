@@ -3,6 +3,7 @@ from pyPreservica import *
 import secret
 import datetime
 from lxml import etree
+import pandas as pd
 
 startTime = datetime.datetime.now()
 print("Start Time: " + str(startTime))
@@ -16,29 +17,36 @@ content = ContentAPI(username=secret.username,password=secret.password, \
 retention = RetentionAPI(username=secret.username,password=secret.password, \
                     tenant="UARM",server="unilever.preservica.com")
 
+def path_parent_return(ref,io):
+    if io == "IO":
+        x = entity.asset(ref)
+    else: 
+        x = entity.folder(ref)
+    fpath = x.title        
+    f = entity.folder(x.parent)
+    parent_name = f.title
+    while f.parent is not None:
+        f = entity.folder(f.parent)
+        fpath = f.title + ":::" + fpath
+        fpath = fpath.rsplit(":::",maxsplit=1)[0]
+        fpath = fpath.split(":::",maxsplit=2)[-1]
+    return fpath,parent_name
+
 if __name__ == '__main__':
-    uknl = "UK"
-    
-    if uknl == "UK":
-        nl_flag = False
-    elif uknl == "NL":
-        nl_flag = True
-    else:
-        uknl == "UK"
-    if nl_flag:  rootname = "Records Management NL"
-    else: rootname = "Records Management UK" # Can be overriden with sub-childs for testing...
 
-    xlpath = rf"C:\Users\Chris.Prince\Unilever\UARM Teamsite - Records Management\Project Snakeboot\XLoutput\CS10Export_{uknl}Archive_Final.xlsx"
-
-    #Lists for Error Checking and for Retention Setting.
-    RETENT_ERRORLIST = []
-    RETENTION_LIST = []
     #Root Preservica Level, where database will sit. Hard coded, doesn't need to vary - only update on final upload
     PRES_ROOT_FOLDER = "bf614a5d-10db-4ff8-addb-2c913b3149eb"
-    PRES_ROOT_FOLDER = "3cea8f86-1f4e-43dc-81c3-cfa81d5370f0"
 
     #Data Frame Loading. Sheets needs to be changed on changing from UK to NL. Normally takes ~2 minutes to read UK.
     
-    filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,'rm.legacyid':"","xip.reference": ""}
+    filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,'rm.legacyid':"*","xip.reference": "*","xip.parent_hierachy": "*","xip.title": "*","xip.description":"*","xip.document_type":"*"}
+    dict_list = []
     content.search_callback(content.ReportProgressCallBack())
-    content.search_index_filter_csv("%", "pres_RM-UKArchive.csv", filter_values=filters)
+    report_search = content.search_index_filter_list(query="%", filter_values=filters)
+    for hit in report_search:
+        ref = hit['xip.reference']
+        full_path,parent_title = path_parent_return(ref,hit['xip.document_type'])
+        dict_ent = {'Reference': ref, 'Path': full_path, 'Parent':parent_title,'Title': hit['xip.title'],'Description':hit['xip.description'],'LegacyID':hit['rm.legacyid']}
+        dict_list.append(dict_ent)
+    df = pd.DataFrame(dict_list)
+    df.to_excel('Output.xlsx')
