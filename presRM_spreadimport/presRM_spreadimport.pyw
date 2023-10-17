@@ -43,8 +43,16 @@ def preservica_upload_electronic(title,description,PRES_PARENT_REF):
 def metadata_update_box(PRES_REF,xml,loc,NS):
     try:
         new_box = entity.folder(PRES_REF)
+        idents = entity.identifiers_for_entity(new_box)
+        for ident in idents:
+            if "code" in ident:
+                print(ident)
         entity.add_identifier(new_box,"code",loc)
-        entity.add_metadata(new_box,NS,xml)
+        metadata_check = entity.metadata_for_entity(new_box,RMNS)
+        if metadata_check:
+            entity.update_metadata(new_box,NS,xml)
+        else:
+            entity.add_metadata(new_box,NS,xml)
     except Exception as e:
         ERROR_LIST.append([PRES_REF,e])
         print(e)
@@ -53,7 +61,11 @@ def metadata_update_item(PRES_REF,xml,loc,NS):
     try:
         new_item = entity.asset(PRES_REF)
         entity.add_identifier(new_item,"code",loc)
-        entity.add_metadata(new_item,NS,xml)
+        metadata_check = entity.metadata_for_entity(new_item,RMNS)
+        if metadata_check:
+            entity.update_metadata(new_item,NS,xml)
+        else:
+            entity.add_metadata(new_item,NS,xml)
     except Exception as e:
         ERROR_LIST.append([PRES_REF,e])
         print(e)
@@ -140,41 +152,46 @@ def box_item_loop(PARENT_REF):
         for box in box_list:
             type_flag = "Box"
             XML_P = XML_Parse(RMNS)
-            box_xml,loc = XML_P.metadata_parse(box_dict=box,item_dict=None,transfer_dict=transfer_dict,type_flag=type_flag)
+            box_xml,loc = XML_P.metadata_parse(box_dict=box,item_dict=None,transfer_dict=transfer_dict,type_flag=type_flag,up_flag=up_flag)
             BOX_PRES_REF = search_check(box.get('Box Reference'),PARENT_REF,desc=box.get('Description'))
             if not BOX_PRES_REF: pass # If Search Check returns None (Only on 'donothing' tag), 
             else:
                 metadata_update_box(BOX_PRES_REF,box_xml,loc,RMNS)
-                assigned_retention = box.get('Classification')
+                if up_flag == "Legal" or up_flag == "Lab": assigned_retention = None
+                else: assigned_retention = box.get('Classification')
                 item_list = dfitem.to_dict('records')
                 item_search_filters = {"xip.reference":"*","xip.document_type":"IO","xip.title":"*","xip.parent_ref":f"{BOX_PRES_REF}"}
                 item_search_dictlist = list(content.search_index_filter_list(query=f"*",filter_values=item_search_filters))
                 item_search_list = [x['xip.title'] for x in item_search_dictlist]
+                if up_flag == "Legal": field_string = "Agreement Reference"
+                elif up_flag == "Lab": field_string = "Title"
+                else: field_string = "Item Reference"
                 for item in item_list:
                     #for sitem in item_search_list: print(sitem)
-                    if any(item.get('Item Reference') in sitem for sitem in item_search_list):
+                    if any(item.get(field_string) in sitem for sitem in item_search_list):
                         print('Item has a match and is already on Preservica... Skipping') 
                         pass
                     else:
                         if str(box.get('Box Reference')) == str(item.get('Box Verify')):
                             if up_flag == "Legal" or up_flag == "Lab" or up_flag == "USCC": type_flag = up_flag
                             else: type_flag = "Item"
-                            item_xml, loc = XML_P.metadata_parse(box_dict=box,item_dict=item,transfer_dict=transfer_dict,type_flag=type_flag)
-                            ITEM_PRES_REF = preservica_create_item(item.get('Item Reference'),item.get('Description'),BOX_PRES_REF)
+                            item_xml, loc = XML_P.metadata_parse(box_dict=box,item_dict=item,transfer_dict=transfer_dict,type_flag=type_flag,up_flag=up_flag)
+                            ITEM_PRES_REF = preservica_create_item(item.get(field_string),item.get('Description'),BOX_PRES_REF)
                             #ITEM_PRES_REF = search_check(itemref,BOX_PRES_REF,desc=itemdesc,type_flag="Asset")
                             #if not ITEM_PRES_REF: pass #Skips Items that are already uploaded onto System.
                             #else: 
                             metadata_update_item(ITEM_PRES_REF,item_xml,loc,RMNS)
-                            policy = retention_lookup(assigned_retention,dfclass)
-                            RETENTION_LIST.append({"Preservica Reference":ITEM_PRES_REF,"Preservica Retention":policy})
+                            if str(assigned_retention) != "nan" or assigned_retention != None:
+                                policy = retention_lookup(assigned_retention,dfclass)
+                                RETENTION_LIST.append({"Preservica Reference":ITEM_PRES_REF,"Preservica Retention":policy})
+                            else: print('Retention Not Assigned, skipping policy assignment...')
                         else: 
                             print('Item does not have a matching Box Verify Reference... Skipping.')
                             pass
 
 def make_structure(folder):
     if os.path.exists(folder): pass
-    else: os.makedirs()
-
+    else: os.makedirs(folder)
 
 def test_search():
     test_reference = "bf614a5d-10db-4ff8-addb-2c913b3149eb"
@@ -182,7 +199,6 @@ def test_search():
 
     filters = {"xip.reference":"*","xip.document_type":"*","xip.title":f"{test_title}","xip.parent_ref":f"{test_reference}"}
     search = list(content.search_index_filter_list(query=f"*",filter_values=filters))
-    print(search)
     for s in search:
         print(s['xip.title'])
         if s['xip.title'] == test_title: print('Yes')
@@ -191,7 +207,7 @@ def test_search():
 if __name__ == '__main__':
 
     upload_folder = r"C:\Users\Chris.Prince\Unilever\UARM Teamsite - Records Management\Preservica Spreadsheet Uploads\Uploads - PLACE COMPLETED TEMPLATE IN HERE"
-    #upload_folder = "/Users/archives/Unilever/UARM Teamsite - Records Management/Preservica Spreadsheet Uploads/Uploads - PLACE COMPLETED TEMPLATE IN HERE"
+    upload_folder = "/Users/archives/Unilever/UARM Teamsite - Records Management/Preservica Spreadsheet Uploads/Uploads - PLACE COMPLETED TEMPLATE IN HERE"
     error_folder = os.path.join(upload_folder,"errors")    
     #test_search()
 
@@ -231,51 +247,61 @@ if __name__ == '__main__':
             if "TM" in xl.sheet_names:
                 dftm = xl.parse('TM')
                 up_flag = "TM"
-            else: 
-                dfbox = xl.parse('Box')
-                dfitem = xl.parse('Item')
-                dfclass = xl.parse('VAL-CLASS')
-            xl.close()
-            if "Legal" in xl.sheet_names:
+                if transfer_dict.get('Database') == "Certificates": TOP_REF = TMCERT_ROOT
+                elif transfer_dict.get('Database') == "Agreements": TOP_REF = TMAGR_ROOT
+                else: print('Something Fishy is going on, and I don\'t like it one bit...'); raise SystemExit()
+                xl.close()
+                box_item_loop(TOP_REF)
+            elif "Legal" in xl.sheet_names:
                 up_flag = "Legal"
                 legal_dept_search = transfer_dict.get('Top-Level')
                 if legal_dept_search == "UKI": TOP_REF = UKI_ROOT
                 elif legal_dept_search == "UNI": TOP_REF = UNI_ROOT
                 else: print('Top-Level needs to be either UNI or UKI; raising System Exit'); raise SystemExit()
+                dfbox = xl.parse('Box')
+                dfitem = xl.parse('Legal')
+                xl.close()
                 box_item_loop(TOP_REF)
             #Lab Notebooks will default to 
             elif "Lab" in xl.sheet_names:
                 up_flag = "Lab"
                 TOP_REF = LAB_ROOT
+                xl.close()
                 box_item_loop(TOP_REF)
-            elif "TM" in xl.sheet_names:
-                if transfer_dict.get('Database') == "Certificates": TOP_REF = TMCERT_ROOT
-                elif transfer_dict.get('Database') == "Agreements": TOP_REF = TMAGR_ROOT
-                else: print('Something Fishy is going on, and I don\'t like it one bit...'); raise SystemExit()
-                box_item_loop(TOP_REF)
-            else:
+                dfbox = xl.parse('Box')
+                dfitem = xl.parse('Lab')
+            else: 
+                dfbox = xl.parse('Box')
+                dfitem = xl.parse('Item')
+                dfclass = xl.parse('VAL-CLASS')
+                xl.close()
                 up_flag = False
                 top_search = transfer_dict.get('Top-Level Folder')
                 TOP_REF = search_check(top_search,PRES_ROOT_FOLDER,desc=top_search)
                 dept_search = transfer_dict.get('Departmental Folder')
                 DEPT_REF = search_check(dept_search,TOP_REF,desc=dept_search)
                 date_title = datetime.strftime((transfer_dict.get('Transfer Date')),"%d/%m/%Y")
-                date_desc = date_title
-                DATE_REF = search_check(date_title, DEPT_REF, desc=date_title)
+                date_desc_temp = str(transfer_dict.get('Transfer Description'))
+                if date_desc_temp == "nan": date_desc_temp == date_title
+                date_desc = date_desc_temp
+                DATE_REF = search_check(date_title, DEPT_REF, desc=date_desc)
                 box_item_loop(DATE_REF)
             shutil.move(temp_path,comp_path)
             print(f'Successfully moved Temp_File: {temp_path}; to: {comp_path}')
             print(f'Processed Structure Upload, ran for: {datetime.now() - startTime}')
             print(f'Sleeping 10 Secs, before running Retention Assignment...')
             time.sleep(10)
-            retention_assignment(RETENTION_LIST)
+            if RETENTION_LIST:
+                retention_assignment(RETENTION_LIST)
+            else: 
+                print('Retention List is Empty, skipping Retention Assignment...')
         else: 'Ignoring Non-Excel file'
     print(f"Complete!, ran for: {datetime.now() - startTime}")
     if ERROR_LIST:
         dferr = pd.DataFrame(ERROR_LIST,columns=['Pres Ref','Error Message'])
-        with pd.ExcelWriter(os.path.join(error_folder,f"Error List_{timestamp}",".xlsx"),engine='auto',mode='w') as xlWriter:
+        with pd.ExcelWriter(os.path.join(error_folder,f"Error List_{timestamp}" + ".xlsx"),engine='auto',mode='w') as xlWriter:
             dferr.to_excel(xlWriter,'Errors',index=False)
     if RETENT_ERRORLIST:
         dferr = pd.DataFrame(RETENT_ERRORLIST,columns=['Pres Ref','Error Message'])
-        with pd.ExcelWriter(os.path.join(error_folder,f"Retention_Error List_{timestamp}",".xlsx"),engine='auto',mode='w') as xlWriter:
+        with pd.ExcelWriter(os.path.join(error_folder,f"Retention_Error List_{timestamp}" + ".xlsx"),engine='auto',mode='w') as xlWriter:
             dferr.to_excel(xlWriter,'Errors',index=False)

@@ -55,7 +55,7 @@ class XML_Parse():
         
         return xml
 
-    def metadata_parse(self,box_dict,item_dict=None,type_flag=None,transfer_dict=None):
+    def metadata_parse(self,box_dict,item_dict=None,transfer_dict=None,type_flag=None,up_flag=None):
         transdate = ""
         transaccpt = ""
         transby = ""
@@ -134,20 +134,29 @@ class XML_Parse():
             weight = text_formatting(box_dict.get('Weight'))
             altcont = text_formatting(box_dict.get('Alternative Contact'))
             client = text_formatting(box_dict.get('Client'))
-            statusdate = date_formatting(box_dict.get('Status Date'))
+            if up_flag != "Legal": statusdate = date_formatting(box_dict.get('Status Date'))
+            else: statusdate = ""
             boxtype = text_formatting(box_dict.get('Box Type'))
             area = text_formatting(box_dict.get('Area'))
             defaultloc = text_formatting(box_dict.get('Home Location'))
             coverdates = text_formatting(box_dict.get('Covering Dates'))
             notes = text_formatting(box_dict.get('Notes'))
 
-            #Transfer_Dict only Get's fed into Box Level 
-            transdate = date_formatting(transfer_dict.get('Transfer Date'))
-            transaccpt = text_formatting(transfer_dict.get('Accepted By'))
-            transby = text_formatting(transfer_dict.get('Transferred By'))
-            transcharge = text_formatting(transfer_dict.get('Chargeable'))
-            transnotes = text_formatting(transfer_dict.get('Transfer Notes'))       
-
+            #Transfer_Dict only Get's fed into Box Level
+            #If Statement to filter out Legal.
+            if up_flag != "Legal":
+                transdate = date_formatting(transfer_dict.get('Transfer Date'))
+                transaccpt = text_formatting(transfer_dict.get('Accepted By'))
+                transby = text_formatting(transfer_dict.get('Transferred By'))
+                transcharge = text_formatting(transfer_dict.get('Chargeable'))
+                transnotes = text_formatting(transfer_dict.get('Transfer Ntoes'))
+            else:
+                transdate = ""
+                transaccpt = ""
+                transby = ""
+                transcharge = ""
+                transnotes = ""
+            
         elif type_flag == "Item":
             objtype = "Item"
             #Box Information Recurses down to Item Level
@@ -195,7 +204,7 @@ class XML_Parse():
             loc = text_formatting(box_dict.get('Location'))
             altcont = text_formatting(box_dict.get('Alternative Contact'))
             client = text_formatting(box_dict.get('Client'))
-            statusdate = date_formatting(box_dict.get('Status Date'))
+            #statusdate = date_formatting(box_dict.get('Status Date'))
             area = text_formatting(box_dict.get('Area'))
             defaultloc = text_formatting(box_dict.get('Home Location'))
             #Legal - Base
