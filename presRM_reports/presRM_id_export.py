@@ -1,11 +1,11 @@
 import pandas as pd
 from pyPreservica import *
 import secret
-import datetime
+from datetime import datetime
 from lxml import etree
 import pandas as pd
 
-startTime = datetime.datetime.now()
+startTime = datetime.now()
 print("Start Time: " + str(startTime))
 
 entity = EntityAPI(username=secret.username,password=secret.password, \
@@ -34,19 +34,24 @@ def path_parent_return(ref,io):
 
 if __name__ == '__main__':
 
-    #Root Preservica Level, where database will sit. Hard coded, doesn't need to vary - only update on final upload
+    #Root Preservica Level, where database will sit.
     PRES_ROOT_FOLDER = "bf614a5d-10db-4ff8-addb-2c913b3149eb"
 
+    PATH_FLAG = False
     #Data Frame Loading. Sheets needs to be changed on changing from UK to NL. Normally takes ~2 minutes to read UK.
     
-    filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,'rm.legacyid':"*","xip.reference": "*","xip.parent_hierachy": "*","xip.title": "*","xip.description":"*","xip.document_type":"*"}
+    filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,'rm.legacyid':"*","xip.reference": "*","xip.parent_hierachy": "*","xip.title": "*","xip.description":"*","xip.document_type":"*","xip.retention_policy_assignment_name": ""}
     dict_list = []
     content.search_callback(content.ReportProgressCallBack())
     report_search = content.search_index_filter_list(query="%", filter_values=filters)
+
     for hit in report_search:
         ref = hit['xip.reference']
-        full_path,parent_title = path_parent_return(ref,hit['xip.document_type'])
-        dict_ent = {'Reference': ref, 'Path': full_path, 'Parent':parent_title,'Title': hit['xip.title'],'Description':hit['xip.description'],'LegacyID':hit['rm.legacyid']}
+        if PATH_FLAG:
+            full_path,parent_title = path_parent_return(ref,hit['xip.document_type'])
+            dict_ent = {'Reference': ref, 'Path': full_path, 'Parent':parent_title,'Title': hit['xip.title'],'Description':hit['xip.description'],'LegacyID':hit['rm.legacyid'],'Policy Name': hit['xip.retention_policy_assignment_name']}
+        else: dict_ent = {'Reference': ref, 'Title': hit['xip.title'],'Description':hit['xip.description'],'LegacyID':hit['rm.legacyid'],'Policy Name': hit.get('xip.retention_policy_assignment_name')}
         dict_list.append(dict_ent)
     df = pd.DataFrame(dict_list)
-    df.to_excel('Output.xlsx')
+    df.to_excel('presRM_UK_id.xlsx')
+    print("Finish Time: " + str(datetime.now() - startTime))
