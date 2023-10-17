@@ -1,13 +1,15 @@
 import pandas as pd
 from pyPreservica import *
 import os
-from .. import secret
+import secret
 import time
 from datetime import datetime
 
 entity = EntityAPI(username=secret.username,password=secret.password, tenant="UARM",server="unilever.preservica.com")
 content = ContentAPI(username=secret.username,password=secret.password, tenant="UARM",server="unilever.preservica.com")
 retention = RetentionAPI(username=secret.username,password=secret.password, tenant="UARM",server="unilever.preservica.com")
+
+content.search_callback(content.ReportProgressCallBack())
 
 print(entity.token)
 
@@ -60,17 +62,29 @@ def create_policies_xl(xl,xltab):
         retent = retention.create_policy(**args)
         print(f'Retention created: {retent.reference}')
 
-def list_retention_assignments():
-    filters = {"xip.reference": "*", "xip.title": "",  "xip.description": "", "xip.document_type": "*",  "xip.parent_ref": "", "xip.security_descriptor": "*",
-        "xip.identifier": "", "xip.bitstream_names_r_Preservation": "","xip.retention_policy_assignment_ref":"","xip.retention_policy_assignment_name": "*"}
-    print(len(list(content.search_index_filter_list(query="%",filter_values=filters))))
+def list_retention_assignments(ref="%"):
+    filters = {"xip.title": "",  "xip.description": "", "xip.document_type": "*",  "xip.parent_ref": "", "xip.security_descriptor": "*",
+        "xip.identifier": "", "xip.bitstream_names_r_Preservation": "","xip.retention_policy_assignment_ref":"","xip.retention_policy_assignment_name": "*","rm.statusdate":""}
+    search = list(content.search_index_filter_list(query=ref,filter_values=filters))
+    print(len(search))
+    for hit in search:
+        ref = hit['xip.reference']
+        asset = entity.asset(ref)
+        try:
+            assignments = retention.assignments(asset)
+            for ass in assignments:
+                print(ass.entity_reference, ass.policy_reference, hit['xip.retention_policy_assignment_name'][0], hit['rm.statusdate'],ass.start_date, ass.expired)
+        except Exception as e:
+            print(f'Failed to get Assignments on: {ref}')
+            print(f'Exception: {e}')
+            raise SystemError()
 
-def clear_all_retention_assignments():
-    filters = {"xip.reference": "*", "xip.title": "",  "xip.description": "", "xip.document_type": "*", "xip.parent_hierarchy": "",
+def clear_all_retention_assignments(ref="%"):
+    filters = {"xip.reference": "", "xip.title": "",  "xip.description": "", "xip.document_type": "*", "xip.parent_hierarchy": "",
             "xip.parent_ref": "", "xip.security_descriptor": "*",
             "xip.identifier": "", "xip.bitstream_names_r_Preservation": "","xip.retention_policy_assignment_ref":"","xip.retention_policy_assignment_name": "*"}
-    print(len(list(content.search_index_filter_list(query="%",filter_values=filters))))
-    for hit in list(content.search_index_filter_list(query="%",filter_values=filters)):
+    print(len(list(content.search_index_filter_list(query=ref,filter_values=filters))))
+    for hit in list(content.search_index_filter_list(query=ref,filter_values=filters)):
         ref = hit['xip.reference']
         retention_ref = hit['xip.retention_policy_assignment_ref']
         asset = entity.asset(ref)
@@ -95,6 +109,7 @@ if __name__ == "__main__":
     polfilter = "Days"
     #clear_editable_policies(polfilter)
     #list_policies()
+    list_retention_assignments("36a67c99-0d29-47ac-ac55-df010927cdb2")
     #create_policies_xl(xl,xltab)
-    clear_all_retention_assignments()
+    #clear_all_retention_assignments()
     print(f'Complete, ran for: {datetime.now() - startTime}')
