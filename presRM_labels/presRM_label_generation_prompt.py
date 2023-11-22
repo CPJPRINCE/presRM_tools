@@ -59,7 +59,7 @@ def enter_inputs():
             if "files-only" in opt or "f" == opt: filesonly = True
             if "output" in opt or "o" == opt:
                 output = options[count+1]
-                if not os.path.exists(output): print('Output path is invalid and does not exist...'); sleep(5) raise SystemExit()
+                if not os.path.exists(output): print('Output path is invalid and does not exist...'); sleep(5); raise SystemExit()
             if "combine" in opt or "c" == opt: combine = True
             if "toplevel" in opt or "t" == opt: toplevel = options[count+1]
     return boxref,boxonly,filesonly,combine,output,toplevel

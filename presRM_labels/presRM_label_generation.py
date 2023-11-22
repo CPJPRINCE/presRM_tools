@@ -38,7 +38,7 @@ class LabelGenerator:
         self.barcode_flag = barcode_flag
                 
     def search_preservica(self,top_level,search_ref):
-        filters = {"xip.parent_hierarchy": top_level,"xip.title":search_ref,"rm.objtype":self.objtype,"rm.location":"*","rm.weight":"*"}
+        filters = {"xip.parent_hierarchy": top_level,"xip.title":search_ref,"rm.objtype":self.objtype,"rm.location":"","rm.weight":""}
         search = list(self.content.search_index_filter_list(query="%",filter_values=filters))
         return search
     
@@ -122,6 +122,7 @@ class BoxLabel(LabelGenerator):
     def box_label_values(self):
         for x in self.box_search:
             self.xipref = x.get('xip.reference')
+            self.boxtitle = x.get('xip.title')
             self.location = x.get('rm.location')
             self.weight = x.get('rm.weight')
             dept_lookup = x.get('xip.parent_hierarchy')[0].split(" ")[-5]
@@ -130,21 +131,20 @@ class BoxLabel(LabelGenerator):
     def box_label_generation(self):
         if self.location: location = f"Location: {self.location}"
         if self.weight: weight = f"Weight: {self.weight} kg"
+        else: weight = ""
         C = Canvas(self.file_output)
         C.setPageSize((4*inch,4*inch))
         f1 = Frame(0.2*inch,2.9*inch,2.8*inch,0.9*inch,showBoundary=0)
         f2 = Frame(0.2*inch,1.1*inch,3.6*inch,1.8*inch,showBoundary=0)
         f3 = Frame(0.2*inch,0.65*inch,1.8*inch,0.45*inch,showBoundary=1)
         f4 = Frame(0.2*inch,0.2*inch,1.8*inch,0.45*inch,showBoundary=1)
-        f5 = Frame(2.0*inch,0.65*inch,1.8*inch,0.45*inch,showBoundary=1)
-        f6 = Frame(2.0*inch,0.2*inch,1.8*inch,0.45*inch,showBoundary=1)
         if self.barcode_flag:
             bcode = code128.Code128(self.barcode,barHeight=(0.5*inch),humanReadable=True)
             bcode.drawOn(C,0.25*inch,0.25*inch)
-        f1.addFromList([add_to_para_box(self.boxref,self.styleLarge)],C)
+        f1.addFromList([add_to_para_box(self.boxtitle,self.styleLarge)],C)
         f2.addFromList([add_to_para_box(self.department,self.styleNormal)],C)
         f3.addFromList([add_to_para_box(location,self.styleNormal)],C)
-        f4.addFromList([add_to_para_box(weight,self.styleNormal)],C)
+        if weight: f4.addFromList([add_to_para_box(weight,self.styleNormal)],C)
         try: C.drawInlineImage(self.uarmimage,2.8*inch,0.4*inch,width=1.0*inch,preserveAspectRatio=True)
         except: pass
         C.save()
