@@ -55,16 +55,33 @@ def checksum_return(ref,io):
 
 if __name__ == '__main__':
 
-    PRES_ROOT_FOLDER = "25b0ddc1-c71b-411e-bef7-77b77ca0a763"
+    PRES_ROOT_FOLDER = sys.argv[1]
     SPLIT_FLAG = False
     PATH_FLAG = False
-    RMID_FLAG = False
-    HASH_FLAG = True
+    HASH_FLAG = False
     filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,
                "xip.title": "",
                "xip.description":"",
-               "xip.document_type":""}
-    if RMID_FLAG: filters.update({'rm.legacyid': "*"})
+               "xip.document_type":"",
+               "rm.statusdate":"",
+               "rm.coverdate":"",
+               "rm.notes":"",
+               "rm.disposition":"",
+               "rm.objtype":"",
+               "rm.boxtype":"",
+               "rm.location":"",
+               "rm.weight":"",
+               "rm.area":"",
+               "rm.defaultlocation":"",
+               "rm.client":"",
+               "rm.alternatecontact":"",
+               "rm.itemtype":"",
+               "rm.format":"",
+               "rm.numberofitems":"",
+               "rm.transferdate":"",
+               "rm.transferacceptedby":"",
+               "rm.legacyid":"",
+               "rm.legacyparentid":""}
     dict_list = []
     content.search_callback(content.ReportProgressCallBack())
     
@@ -74,20 +91,13 @@ if __name__ == '__main__':
     for hit in report_search:
         c += 1
         print(f'Processing {c} / {tot}',end="\r")
-
-        dict_ent = {'Reference': hit.get('xip.reference'),
-                    'Title': hit.get('xip.title'),
-                    'Description':hit.get('xip.description'),
-                    'Type':hit.get('xip.document_type')}
-        if RMID_FLAG:
-            dict_ent.update({'LegacyID':hit.get('rm.legacyid')})
         if PATH_FLAG:
             full_path,parent_title = path_parent_return(hit.get('xip.reference'),hit.get('xip.document_type'))
-            dict_ent.update({'Path': full_path, 'Parent':parent_title})
+            hit.update({'Path': full_path, 'Parent':parent_title})
         if HASH_FLAG:
             alg, hash = checksum_return(hit.get('xip.reference'),hit.get('xip.document_type'))
-            dict_ent.update({'Algorithm': alg,'Fixity': hash})
-        dict_list.append(dict_ent)
+            hit.update({'Algorithm': alg,'Fixity': hash})
+        dict_list.append(hit)
     df = pd.DataFrame.from_records(dict_list)
     df.index.name = "Index"
-    df.to_excel('Accessions_Output.xlsx')
+    df.to_excel('Output.xlsx')

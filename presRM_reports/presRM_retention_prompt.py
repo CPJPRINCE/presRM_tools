@@ -162,5 +162,12 @@ def main():
     RetentionReport(entity=entity,retention=retention,content=content,REF=ref_input,OUTPUT_DIR=directory_input,REPORT_TYPE=report_input,EXPIRED_FLAG=expired_input,PATH_FLAG=path_input,SPLIT_FLAG=split_input).main()
     
 if __name__ == "__main__":
-    main()
-    input("Will close on keyboard mashing...")
+    try:
+        main()
+        input("Will close on keyboard mashing...")
+    except Exception as e:
+        print('Failed with following reason...')
+        sleep(2)
+        print(e)
+        input('Press enter to close...')
+        raise SystemError()

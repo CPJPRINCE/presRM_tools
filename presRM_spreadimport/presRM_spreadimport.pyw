@@ -6,7 +6,8 @@ import os
 import shutil
 from lxml import etree
 from xml_parsing import XML_Parse,text_formatting,date_formatting
-from html import escape
+#from html import escape
+from re import escape
 
 startTime = datetime.now()
 print("Start Time: " + str(startTime))
@@ -21,17 +22,23 @@ retention = RetentionAPI(username={secret.username},password={secret.password}, 
                     tenant="UARM",server="unilever.preservica.com")
 
 def preservica_create_folder(title,description,PRES_PARENT_REF):
+    title = text_formatting(title)
+    description = text_formatting(description)
     if PRES_PARENT_REF:
         new_folder = entity.create_folder(title,description,"closed",PRES_PARENT_REF)
         print(f'Created Folder at: {title}, Reference {new_folder.reference}')
     return new_folder.reference
 
 def preservica_create_box(title,description,PRES_PARENT_REF):
+    title = text_formatting(title)
+    description = text_formatting(description)
     new_box = entity.create_folder(title,description,"closed",PRES_PARENT_REF)
     print(f'Created Box at: {title}, Reference {new_box.reference}')
     return new_box.reference
 
 def preservica_create_item(title,description,PRES_PARENT_REF):
+    title = text_formatting(title)
+    description = text_formatting(description)
     parent = entity.folder(PRES_PARENT_REF)
     new_item = entity.add_physical_asset(title,description,parent,"closed")
     print(f'Created Item at: {title}, Reference {new_item.reference}')
@@ -45,24 +52,29 @@ def metadata_update_box(PRES_REF,xml,loc,NS):
         new_box = entity.folder(PRES_REF)
         idents = entity.identifiers_for_entity(new_box)
         for ident in idents:
-            if "code" in ident:
-                print(ident)
-        entity.add_identifier(new_box,"code",loc)
-        metadata_check = entity.metadata_for_entity(new_box,RMNS)
-        if metadata_check:
-            entity.update_metadata(new_box,NS,xml)
+            if "code" in ident: break    
+        else: entity.add_identifier(new_box,"code",loc)
+        existing_xml = entity.metadata_for_entity(new_box,RMNS)
+        if existing_xml:
+            xml = xml_merge(xml_a=etree.fromstring(existing_xml),xml_b=etree.fromstring(xml))
+            entity.update_metadata(new_box,NS,xml.decode('utf-8'))
         else:
             entity.add_metadata(new_box,NS,xml)
     except Exception as e:
         ERROR_LIST.append([PRES_REF,e])
         print(e)
+        raise SystemError()
 
 def metadata_update_item(PRES_REF,xml,loc,NS):
     try:
         new_item = entity.asset(PRES_REF)
-        entity.add_identifier(new_item,"code",loc)
-        metadata_check = entity.metadata_for_entity(new_item,RMNS)
-        if metadata_check:
+        idents = entity.identifiers_for_entity(new_item)
+        for ident in idents:
+            if "code" in ident: break
+        else: entity.add_identifier(new_item,"code",loc)
+        existing_xml = entity.metadata_for_entity(new_item,RMNS)
+        if existing_xml:
+            xml = xml_merge(xml_a=etree.fromstring(existing_xml),xml_b=etree.fromstring(xml))
             entity.update_metadata(new_item,NS,xml)
         else:
             entity.add_metadata(new_item,NS,xml)
@@ -86,46 +98,64 @@ def retention_assignment(RETENTION_LIST):
         except Exception as e:
             RETENT_ERRORLIST.append(PRES_REF,e)
 
-def search_check(search_title,PARENT_REF,desc="",type_flag="Folder",many_flag="create"):
-    filters = {"xip.reference":"*","xip.document_type":"*","xip.title":f"{search_title}","xip.parent_ref":f"{PARENT_REF}"}
+def xml_merge(xml_a,xml_b):
+    for b_child in xml_b.findall('./'):
+        a_child = xml_a.find('./' + b_child.tag)
+        if a_child is not None:
+            if b_child.text:
+                a_child.text = b_child.text
+        else: print(b_child.tag)
+        if b_child.getchildren(): 
+            xml_merge(a_child,b_child)
+    return etree.tostring(xml_a)
+
+def search_check(search_title,PARENT_REF,desc="",type_flag="Folder",many_flag="first"):
+    filters = {"xip.reference":"*","xip.document_type":"*","xip.title":" ""{0}"" ".format(search_title),"xip.parent_ref":f"{PARENT_REF}"}
     search = list(content.search_index_filter_list(query=f"*",filter_values=filters))
     if not len(search):
         SEARCH_REF = PARENT_REF
     elif len(search) > 1:
-        print('Too many item\'s have been found; checking for exact match...')
-        for s in search:
-            if s['xip.title'] == search_title and s['xip.document_type'] == "SO":
-                SEARCH_REF = s['xip.reference']
-                print(f'Found an exact match: importing to: {SEARCH_REF}')
-                break
-            else: 
-                print('Couldn\'t find an exact match, defaulting to fallback')
-                ###### Double Check the Fallback operation...
-                if search[0]['xip.document_type'] == "SO": #This is only operating on the first search result... Which might not be true in a multi result.
-                    if many_flag == "create":
-                        SEARCH_REF = PARENT_REF
-                    elif many_flag ==  "first":
-                        SEARCH_REF = search[0]['xip.reference']
-                    elif many_flag == "donothing":
-                        SEARCH_REF = None
-                    else: print('Defaulting to First'); SEARCH_REF = search[0]['xip.reference']
-                elif search[0]['xip.document_type'] == "IO":
-                    SEARCH_REF = None #Sets SEARCH_REF to None if the Asset Already Exists (Multiple times...).
-    else:
-        #print('Exact Hit... Only 1 Item')
-        if search[0]['xip.document_type'] == "SO":
-            SEARCH_REF = search[0]['xip.reference']
-        elif search[0]['xip.document_type'] == "IO":
-            SEARCH_REF = None #Sets SEARCH_REF to None if the Asset Already Exists.
+        print(f'Too many item\'s have been found for: {search_title}; checking if exact match exists by Python...')
+        SEARCH_REF = None
+        for hit in search:
+            if not SEARCH_REF:
+                if hit['xip.title'] == search_title:
+                    SEARCH_REF = hit['xip.reference']
+                    break
+            else:
+                continue
+        if not SEARCH_REF:
+            print(f'Couldn\'t find an exact match for: {search_title}, defaulting to fallback: {many_flag}')
+            if search[0]['xip.document_type'] == "SO":
+                if many_flag == "create":
+                    SEARCH_REF = PARENT_REF
+                elif many_flag ==  "first":
+                    SEARCH_REF = search[0]['xip.reference']
+                elif many_flag == "donothing":
+                    SEARCH_REF = None
+                else: print('Defaulting to "first" option'); SEARCH_REF = search[0].get(['xip.reference'])
+                print(f'Reference set as: {SEARCH_REF}')
+            elif search[0]['xip.document_type'] == "IO":
+                print('Multiple Matches to Items...')
+                SEARCH_REF = search[0]['xip.reference'] #Sets SEARCH_REF to None if the Asset Already Exists (Multiple times...).
+        else:
+            print(f'An exact match found: importing to: {SEARCH_REF}')
+            pass
+    #Exact hit found. Return result as SEARCH_REF
+    else: SEARCH_REF = search[0]['xip.reference']
+
+    #Create Path Scenario.
+    #Checks if SEARCH_REF has been assigned as PARENT_REF. 
     if SEARCH_REF == PARENT_REF:
         if type_flag == "Folder":
             SEARCH_REF = preservica_create_folder(search_title,desc,SEARCH_REF)
         elif type_flag == "Asset":
             SEARCH_REF = preservica_create_item(search_title,desc,SEARCH_REF)
     elif SEARCH_REF:
+        #Match Scenario (Multi & Exact). No further action required
         pass
     else:
-        print('None Path')
+        #None Path Scenario.
         pass
     return SEARCH_REF
 
@@ -157,7 +187,7 @@ def box_item_loop(PARENT_REF):
             if not BOX_PRES_REF: pass # If Search Check returns None (Only on 'donothing' tag), 
             else:
                 metadata_update_box(BOX_PRES_REF,box_xml,loc,RMNS)
-                if up_flag == "Legal" or up_flag == "Lab": assigned_retention = None
+                if up_flag == "Legal": assigned_retention = None
                 else: assigned_retention = box.get('Classification')
                 item_list = dfitem.to_dict('records')
                 item_search_filters = {"xip.reference":"*","xip.document_type":"IO","xip.title":"*","xip.parent_ref":f"{BOX_PRES_REF}"}
@@ -168,7 +198,7 @@ def box_item_loop(PARENT_REF):
                 else: field_string = "Item Reference"
                 for item in item_list:
                     #for sitem in item_search_list: print(sitem)
-                    if any(item.get(field_string) in sitem for sitem in item_search_list):
+                    if any(str(item.get(field_string)) in str(sitem) for sitem in item_search_list):
                         print('Item has a match and is already on Preservica... Skipping') 
                         pass
                     else:
@@ -186,28 +216,17 @@ def box_item_loop(PARENT_REF):
                                 RETENTION_LIST.append({"Preservica Reference":ITEM_PRES_REF,"Preservica Retention":policy})
                             else: print('Retention Not Assigned, skipping policy assignment...')
                         else: 
-                            print('Item does not have a matching Box Verify Reference... Skipping.')
+                            #print('Item does not have a matching Box Verify Reference... Skipping.')
                             pass
 
 def make_structure(folder):
     if os.path.exists(folder): pass
     else: os.makedirs(folder)
 
-def test_search():
-    test_reference = "bf614a5d-10db-4ff8-addb-2c913b3149eb"
-    test_title = "Legal"
-
-    filters = {"xip.reference":"*","xip.document_type":"*","xip.title":f"{test_title}","xip.parent_ref":f"{test_reference}"}
-    search = list(content.search_index_filter_list(query=f"*",filter_values=filters))
-    for s in search:
-        print(s['xip.title'])
-        if s['xip.title'] == test_title: print('Yes')
-    raise SystemExit
-
 if __name__ == '__main__':
 
-    upload_folder = r"C:\Users\Chris.Prince\Unilever\UARM Teamsite - Records Management\Preservica Spreadsheet Uploads\Uploads - PLACE COMPLETED TEMPLATE IN HERE"
-    upload_folder = "/Users/archives/Unilever/UARM Teamsite - Records Management/Preservica Spreadsheet Uploads/Uploads - PLACE COMPLETED TEMPLATE IN HERE"
+    upload_folder = sys.argv[1]
+    upload_folder = rf"{upload_folder}"
     error_folder = os.path.join(upload_folder,"errors")    
     #test_search()
 
@@ -266,10 +285,11 @@ if __name__ == '__main__':
             elif "Lab" in xl.sheet_names:
                 up_flag = "Lab"
                 TOP_REF = LAB_ROOT
-                xl.close()
-                box_item_loop(TOP_REF)
                 dfbox = xl.parse('Box')
                 dfitem = xl.parse('Lab')
+                dfclass = xl.parse('VAL-CLASS')
+                xl.close()
+                box_item_loop(TOP_REF)
             else: 
                 dfbox = xl.parse('Box')
                 dfitem = xl.parse('Item')

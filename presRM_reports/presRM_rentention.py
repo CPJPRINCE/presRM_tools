@@ -1,6 +1,6 @@
 from pyPreservica import *
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 try:
     import secret
@@ -42,7 +42,7 @@ class RetentionReport():
             "rm.defaultlocation": "",
             "rm.client": "",
             "rm.coverdate": "",
-            "rm.statusdate": ""}
+            "rm.statusdate": "1900-01-01 - 3000-01-01"}
     def parent_return(self,ref,io):
         if io == "IO": x = self.entity.asset(ref)
         elif io == "SO": x = self.entity.folder(ref)
@@ -54,19 +54,25 @@ class RetentionReport():
         return parent_name,parent_desc
 
     def path_return(self,ref,io,split_flag):
-        if io == "IO": x = self.entity.asset(ref)
-        elif io == "SO": x = self.entity.folder(ref)
-        else: print("Error?")
-        fpath = x.title
-        f = self.entity.folder(x.parent)
-        parent_name = f.title    
-        parent_desc = f.description
-        while f.parent is not None:        
-            fpath = f.title + ":::" + fpath
-            f = self.entity.folder(f.parent)    
-        if split_flag:
-            fpath = fpath.rsplit(":::",maxsplit=1)[0]
-            fpath = fpath.split(":::",maxsplit=3)[-1]
+        try:
+            if io == "IO": x = self.entity.asset(ref)
+            elif io == "SO": x = self.entity.folder(ref)
+            else: print("Error?")
+            fpath = x.title
+            f = self.entity.folder(x.parent)
+            parent_name = f.title    
+            parent_desc = f.description
+            while f.parent is not None:        
+                fpath = f.title + ":::" + fpath
+                f = self.entity.folder(f.parent)    
+            if split_flag:
+                fpath = fpath.rsplit(":::",maxsplit=1)[0]
+                fpath = fpath.split(":::",maxsplit=3)[-1]
+        except Exception as e:
+            print(e)
+            fpath = "ERROR"
+            parent_name = "ERROR"
+            parent_desc = "ERROR"
         return fpath,parent_name,parent_desc
     
     def report_expired(self, assignments,policy,dict_retention):
@@ -99,7 +105,8 @@ class RetentionReport():
                 df.to_excel(writer,index=False,sheet_name="Master")
                 boxdf.to_excel(writer,index=False,sheet_name="Box Summary")
             print(f'File Saved to: {output_file}')
-        except:
+        except Exception as e:
+            print(e)
             print(f'Save failed... Please ensure file is closed: {output_file}')
             time.sleep(10)
             self.export_xl(df,boxdf,output_file)
@@ -108,7 +115,7 @@ class RetentionReport():
         print('Initiating search...')
         list_retention = []
         self.content.search_callback(self.content.ReportProgressCallBack())
-        report_search = list(self.content.search_index_filter_list(query="%", filter_values=self.metadata_fields))
+        report_search = list(self.content.search_index_filter_list(query="%", filter_values=self.metadata_fields,page_size=1000))
         t = len(report_search)
         print()
         print(f"Total Results: {str(t)}")
@@ -117,7 +124,19 @@ class RetentionReport():
             for f in report_search:
                 c += 1
                 print(f"Retrieving Expiration Status: {c} / {t}", end="\r")
-                asset = self.entity.asset(f['xip.reference'])
+                reference = f.get('xip.reference')
+                asset = self.entity.asset(f.get('xip.reference'))
+                sdate_temp = f.get('rm.statusdate')
+                if sdate_temp:
+                    try:
+                        if sdate_temp >0:
+                            sdate_temp = datetime.fromtimestamp(sdate_temp/1000)
+                        else:
+                            sdate_temp = datetime(1970, 1, 1) + timedelta(seconds=int(sdate_temp/1000))
+                    except Exception as e:
+                        print(f'\nInvalid datetime in reference: {reference}; this record will be skipped\n')
+                        print(e)
+                        continue
                 dict_retention = {'Reference': f.get('xip.reference'),
                                 'Document_Type': f.get('xip.document_type'),                               
                                 'Title': f.get('xip.title'),
@@ -129,18 +148,30 @@ class RetentionReport():
                                 'Client': f.get('rm.client'),
                                 'Parent_Ref': f.get('xip.parent_ref'),
                                 'Cover_Dates': f.get('rm.coverdate'),
-                                'Status_Date': datetime.fromtimestamp(f.get('rm.statusdate')/1000)                                
+                                'Status_Date': sdate_temp                                
                                 }
-                assignments = self.retention.assignments(asset)
+                try: 
+                    assignments = self.retention.assignments(asset)
+                except Exception as e: 
+                    print(f'There was an error retrieving Retention Assignment for: {reference}')
+                    print(e)
+                    continue
                 if len(assignments) > 1: print(f"\n Number of Assignments for {f.get('xip.reference')} is: " + str(len(assignments)))
-                policy = self.retention.policy(reference=f.get('xip.retention_policy_assignment_ref')[0]) 
+                try:
+                    policy = self.retention.policy(reference=f.get('xip.retention_policy_assignment_ref')[0])
+                except Exception as e:
+                    print(f'There was an error retrieving Retention Policy for: {reference}')
+                    print(e)
+                    continue                    
                 if self.expired_flag:
                     self.report_expired(assignments,policy,dict_retention)
                 else:
                     self.report_not_expired(assignments,policy,dict_retention)
                 list_retention.append(dict_retention)
+            print('Collecting Expiration Status Finished')
             df = pd.DataFrame.from_records(list_retention)
-            print()
+            print('Records Successfully loaded into DataFrame')
+            print('\n')
             if self.expired_flag: df = df.dropna(subset=['Expired'])
             if self.path_flag:
                 list_path = df[['Reference','Document_Type']].values.tolist()
@@ -172,12 +203,11 @@ class RetentionReport():
             #df['SortHelper'] = df['Title'].str.split('/',expand=True).fillna(value="0")
             df['SortHelper'] = df['Title'].apply(lambda x: "-".join([str(x).zfill(5) for x in str(x).split("/")]))
             df = df.sort_values(by=['SortHelper'])
-            df = df.drop(columns='SortHelper')
+            #df = df.drop(columns='SortHelper')
             if self.report_mode == "*": report_title = "ALL"
             else: report_title = self.report_mode
-            output_file = os.path.join(self.output_dir,f'Retention Report_{report_title + "_" + str(datetime.now().strftime("%Y-%m-%d"))}.xlsx')
+            output_file = os.path.join(self.output_dir,f'Retention Report_{self.reference + "_" + report_title + "_" + str(datetime.now().strftime("%Y-%m-%d"))}.xlsx')
             self.export_xl(df,boxdf,output_file)
-                
         else: print('No Results Returned...')
         
 if __name__ == '__main__':
@@ -186,5 +216,13 @@ if __name__ == '__main__':
     entity,retention,content = login_preservica(user=secret.username,passwd=secret.password)
     ref = "2591783b-725e-4373-9ac1-64e73541e7fa"
     #output_dir = r"C:\Users\Chris.Prince\Unilever\UARM Teamsite - Archive\Digital Preservation\github\presRM_tools\presRM_reports"
-    RetentionReport(entity=entity,retention=retention,content=content,REF=ref,REPORT_TYPE="All",EXPIRED_FLAG=True,PATH_FLAG=False).main()
-    print(f"Complete, running time: {datetime.now() - startTime}")
+    try:
+        RetentionReport(entity=entity,retention=retention,content=content,REF=ref,REPORT_TYPE="All",EXPIRED_FLAG=True,PATH_FLAG=False).main()
+        print(f"Complete, running time: {datetime.now() - startTime}")
+    except Exception as e:
+        print('Process Failed...')
+        time.sleep(2)
+        print('Reason for Failure: ')
+        print(e)
+        input('\n Will close on pressing enter...')
+        raise SystemError()

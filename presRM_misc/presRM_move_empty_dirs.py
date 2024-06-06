@@ -1,6 +1,6 @@
 import pandas as pd
 from pyPreservica import *
-from .. import secret
+import secret
 import re
 from datetime import datetime
 from lxml import etree
@@ -32,10 +32,12 @@ def lookup_loop(folder_ref):
                 lookup_loop(folder_ref)
                 pass
             else: lookup_loop(e.reference)
+
 if __name__ == '__main__':
 
-    next_page = None
     PRES_ROOT_FOLDER = "09114261-3242-4afa-b569-4f32008642bc"
+    PRES_ROOT_FOLDER = None
     lookup_loop(PRES_ROOT_FOLDER)
     print('Complete!')
     print(f"Ran for: {datetime.now() - startTime}")
+    

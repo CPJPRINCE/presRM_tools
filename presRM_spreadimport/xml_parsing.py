@@ -3,7 +3,7 @@ from lxml import etree
 
 def text_formatting(value):
     value = str(value)
-    if value == "False" or value == "NaN" or value == "nan" or value == "NaT" or value == "": value = ""
+    if value == "False" or value == "NaN" or value == "nan" or value == "NaT" or value == "" or value == "None": value = ""
     else: 
         value = str(value).strip()
         value = value.replace("&","&amp;")
@@ -124,7 +124,7 @@ class XML_Parse():
         legacycreateddate = ""
         legacyid = ""
         legacypid = ""
-        alternativereference = ""
+        altref = ""
 
         if type_flag == "Box":
             objtype = "Box"
@@ -141,6 +141,7 @@ class XML_Parse():
             defaultloc = text_formatting(box_dict.get('Home Location'))
             coverdates = text_formatting(box_dict.get('Covering Dates'))
             notes = text_formatting(box_dict.get('Notes'))
+            altref = text_formatting(box_dict.get('Alternative Reference'))
 
             #Transfer_Dict only Get's fed into Box Level
             #If Statement to filter out Legal.
@@ -174,6 +175,7 @@ class XML_Parse():
             coverdates = text_formatting(item_dict.get('Covering Dates'))
             format = text_formatting(item_dict.get('Format'))
             notes = text_formatting(item_dict.get('Notes'))
+            altref = text_formatting(item_dict.get('Alternative Reference'))
 
         elif type_flag == "Lab":
             objtype = "Item"
@@ -198,6 +200,8 @@ class XML_Parse():
             site = text_formatting(item_dict.get('Site'))
             dateofissue = date_formatting(item_dict.get('Date of Issue'))
             dateofcompletion = date_formatting(item_dict.get('Date of Completion'))
+            altref = text_formatting(item_dict.get('Alternative Reference'))
+
         elif type_flag == "Legal":
             objtype = "Item"
             #Box Information Recurses down to Item Level
@@ -231,6 +235,7 @@ class XML_Parse():
                 datesubmitted = date_formatting(item_dict.get('Date Submitted (UKI)'))
                 agreementobjectives = text_formatting(item_dict.get('Agreement Objectives (UKI)'))
             else: datesubmitted = ""; agreementobjectives = ""
+            altref = text_formatting(item_dict.get('Alternative Reference'))
 
         # elif type_flag == "USCC": ### USCC Needs Template Defining...
         #     #USCC Info
@@ -324,7 +329,7 @@ class XML_Parse():
                     f"<rm:createddate>{legacycreateddate}</rm:createddate>" \
                     f"<rm:legacyid>{legacyid}</rm:legacyid>" \
                     f"<rm:legacypid>{legacypid}</rm:legacypid>" \
-                    f"<rm:alternativereference>{alternativereference}</rm:alternativereference>" \
+                    f"<rm:alternativereference>{altref}</rm:alternativereference>" \
                     "</rm:legacyinfo>" \
                     "</rm:rm>"
         

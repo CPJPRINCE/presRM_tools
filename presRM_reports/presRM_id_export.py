@@ -36,14 +36,15 @@ if __name__ == '__main__':
 
     #Root Preservica Level, where database will sit.
     PRES_ROOT_FOLDER = "bf614a5d-10db-4ff8-addb-2c913b3149eb"
+    #PRES_ROOT_FOLDER = "3cea8f86-1f4e-43dc-81c3-cfa81d5370f0"
 
     PATH_FLAG = False
     #Data Frame Loading. Sheets needs to be changed on changing from UK to NL. Normally takes ~2 minutes to read UK.
     
-    filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,'rm.legacyid':"*","xip.reference": "*","xip.parent_hierachy": "*","xip.title": "*","xip.description":"*","xip.document_type":"*","xip.retention_policy_assignment_name": ""}
+    filters = {"xip.parent_hierarchy":PRES_ROOT_FOLDER,'rm.legacyid':"*","xip.reference": "*","xip.parent_hierachy": "*","xip.title": "*","xip.description":"","xip.document_type":"*","xip.retention_policy_assignment_name": ""}
     dict_list = []
     content.search_callback(content.ReportProgressCallBack())
-    report_search = content.search_index_filter_list(query="%", filter_values=filters)
+    report_search = content.search_index_filter_list(page_size=1000,query="%", filter_values=filters)
 
     for hit in report_search:
         ref = hit['xip.reference']

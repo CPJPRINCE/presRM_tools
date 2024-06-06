@@ -63,9 +63,9 @@ def create_policies_xl(xl,xltab):
         print(f'Retention created: {retent.reference}')
 
 def list_retention_assignments(ref="%"):
-    filters = {"xip.title": "",  "xip.description": "", "xip.document_type": "*",  "xip.parent_ref": "", "xip.security_descriptor": "*",
+    filters = {"xip.title": "",  "xip.description": "", "xip.document_type": "*",  "xip.parent_ref": "", "xip.security_descriptor": "*", "xip.parent_hierarchy": ref,
         "xip.identifier": "", "xip.bitstream_names_r_Preservation": "","xip.retention_policy_assignment_ref":"","xip.retention_policy_assignment_name": "*","rm.statusdate":""}
-    search = list(content.search_index_filter_list(query=ref,filter_values=filters))
+    search = list(content.search_index_filter_list(query="%",filter_values=filters))
     print(len(search))
     for hit in search:
         ref = hit['xip.reference']
@@ -108,8 +108,8 @@ if __name__ == "__main__":
     xltab = "PRES_MAP_UK"
     polfilter = "Days"
     #clear_editable_policies(polfilter)
-    #list_policies()
-    list_retention_assignments("36a67c99-0d29-47ac-ac55-df010927cdb2")
+    list_policies()
+    #list_retention_assignments("c0679f68-6d11-4feb-a17b-ee1497f1210d")
     #create_policies_xl(xl,xltab)
     #clear_all_retention_assignments()
     print(f'Complete, ran for: {datetime.now() - startTime}')

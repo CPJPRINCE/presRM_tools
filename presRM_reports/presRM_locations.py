@@ -17,7 +17,7 @@ print(f"Started: {starttime}")
 top_ref = "bf614a5d-10db-4ff8-addb-2c913b3149eb"
 objtype = "Box"
 
-filters = {"xip.identifier":"code","xip.parent_hierarchy":top_ref,"rm.objtype":"Box","rm.boxtype":"*",}
+filters = {"xip.identifier":"code","xip.parent_hierarchy":top_ref,"rm.objtype":"Box","rm.boxtype":"*"}
 c = 0
 content.search_callback(content.ReportProgressCallBack())
 location_search = list(content.search_index_filter_list(query="%",filter_values=filters))
@@ -40,6 +40,7 @@ c = 0
 tot = len(nlist)
 totlist = nlist
 print('Processing N List...')
+
 nlist = filter(lambda n: dfa[dfa['Location'] == n].empty,nlist)
 
 print()       
